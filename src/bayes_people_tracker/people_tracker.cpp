@@ -1,8 +1,7 @@
-#include "people_tracker/people_tracker.h"
+#include "bayes_people_tracker/people_tracker.h"
 
 PeopleTracker::PeopleTracker() :
-    detect_seq(0),
-    marker_seq(0)
+    detect_seq(0)
 {
     ros::NodeHandle n;
 
@@ -101,7 +100,7 @@ void PeopleTracker::parseParams(ros::NodeHandle n) {
 
 
 void PeopleTracker::trackingThread() {
-    ros::Rate fps(30);
+    ros::Rate fps(20);
     double time_sec = 0.0;
     while(ros::ok()) {
         std::map<long, std::vector<geometry_msgs::Pose> > ppl = ekf == NULL ? ukf->track(&time_sec) : ekf->track(&time_sec);
@@ -112,7 +111,7 @@ void PeopleTracker::trackingThread() {
             std::vector<std::string> uuids;
             std::vector<double> distances;
             std::vector<double> angles;
-            double min_dist = 10000.0d;
+            double min_dist = 10000.0;
             double angle;
 
             for(std::map<long, std::vector<geometry_msgs::Pose> >::const_iterator it = ppl.begin();
@@ -128,13 +127,13 @@ void PeopleTracker::trackingThread() {
                 poseInTargetCoords.pose = it->second[0];
 
                 //Find closest person and get distance and angle
-                if(strcmp(target_frame.c_str(), BASE_LINK)) {
-                    try{
+                if(!strcmp(target_frame.c_str(), BASE_LINK)) {
+		  try{
                         ROS_DEBUG("Transforming received position into %s coordinate system.", BASE_LINK);
                         listener->waitForTransform(poseInTargetCoords.header.frame_id, BASE_LINK, poseInTargetCoords.header.stamp, ros::Duration(3.0));
                         listener->transformPose(BASE_LINK, ros::Time(0), poseInTargetCoords, poseInTargetCoords.header.frame_id, poseInRobotCoords);
                     } catch(tf::TransformException ex) {
-                        ROS_WARN("Failed transform: %s", ex.what());
+		        ROS_WARN("Failed transform: %s", ex.what());
                         continue;
                     }
                 } else {
@@ -176,7 +175,31 @@ void PeopleTracker::publishDetections(
     result.angles = angles;
     result.min_distance = min_dist;
     result.min_distance_angle = angle;
+
+    people_msgs::People people;
+    people.header = result.header;
+    for(int i = 0; i < ppl.size(); i++) {
+        // Just running one loop for people_msgs and adding velocities to people_tracker message
+        // Adding velocities as a vector to PeopleTracker message
+        geometry_msgs::Vector3 v;
+        v.x = vels[i].position.x;
+        v.y = vels[i].position.y;
+        result.velocities.push_back(v);
+
+        // Creating and adding Person message
+        people_msgs::Person person;
+        person.position = ppl[i].position;
+        person.velocity = vels[i].position;
+        person.name = uuids[i];
+        person.tags.push_back(uuids[i]);
+        person.tagnames.push_back("uuid");
+        person.reliability = 1.0;
+        people.people.push_back(person);
+    }
+
+    // Publishing both messages
     publishDetections(result);
+    publishDetections(people);
 
     geometry_msgs::PoseStamped pose;
     pose.header = result.header;
@@ -187,20 +210,6 @@ void PeopleTracker::publishDetections(
     poses.header = result.header;
     poses.poses = ppl;
     publishDetections(poses);
-
-    people_msgs::People people;
-    people.header = result.header;
-    for(int i = 0; i < ppl.size(); i++) {
-        people_msgs::Person person;
-        person.position = ppl[i].position;
-        person.velocity = vels[i].position;
-        person.name = uuids[i];
-        person.tags.push_back(uuids[i]);
-        person.tagnames.push_back("uuid");
-        person.reliability = 1.0;
-        people.people.push_back(person);
-    }
-    publishDetections(people);
 }
 
 void PeopleTracker::publishDetections(bayes_people_tracker::PeopleTracker msg) {
@@ -223,7 +232,7 @@ void PeopleTracker::createVisualisation(std::vector<geometry_msgs::Pose> poses, 
     ROS_DEBUG("Creating markers");
     visualization_msgs::MarkerArray marker_array;
     for(int i = 0; i < poses.size(); i++) {
-        std::vector<visualization_msgs::Marker> human = createHuman(i*10, poses[i]);
+        std::vector<visualization_msgs::Marker> human = pm.createHuman(i*10, poses[i], target_frame);
         marker_array.markers.insert(marker_array.markers.begin(), human.begin(), human.end());
     }
     pub.publish(marker_array);
@@ -271,11 +280,12 @@ void PeopleTracker::detectorCallback(const geometry_msgs::PoseArray::ConstPtr &p
                 listener->transformPose(target_frame, ros::Time(0), poseInCamCoords, poseInCamCoords.header.frame_id, poseInTargetCoords);
             }
             catch(tf::TransformException ex) {
+	      std::cout << target_frame << std::endl;
                 ROS_WARN("Failed transform: %s", ex.what());
-                return;
+	      return;
             }
 
-            poseInTargetCoords.pose.position.z = 0.0;
+            //poseInTargetCoords.pose.position.z = 0.0;
             ppl.push_back(poseInTargetCoords.pose.position);
 
     }
