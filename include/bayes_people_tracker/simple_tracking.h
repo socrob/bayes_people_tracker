@@ -40,16 +40,16 @@ using namespace Models;
 
 // rule to detect lost track
 template<class FilterType>
-bool MTRK::isLost(const FilterType* filter) {
+bool MTRK::isLost(const FilterType* filter, double stdLimit) {
     // track lost if var(x)+var(y) > 1
-    if (filter->X(0,0) + filter->X(2,2) > sqr(1.0))
+    if (filter->X(0,0) + filter->X(2,2) > sqr(stdLimit))
         return true;
     return false;
 }
 
 // rule to create new track
 template<class FilterType>
-bool MTRK::initialize(FilterType* &filter, sequence_t& obsvSeq) {
+bool MTRK::initialize(FilterType* &filter, sequence_t& obsvSeq, observ_model_t om_flag) {
     assert(obsvSeq.size());
 
     double dt = obsvSeq.back().time - obsvSeq.front().time;
