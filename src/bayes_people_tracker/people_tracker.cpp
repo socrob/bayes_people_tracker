@@ -32,19 +32,23 @@ PeopleTracker::PeopleTracker() :
     // Create a status callback.
     ros::SubscriberStatusCallback con_cb = boost::bind(&PeopleTracker::connectCallback, this, boost::ref(n));
 
-    private_node_handle.param("positions", pub_topic, std::string("/people_tracker/positions"));
-    pub_detect = n.advertise<bayes_people_tracker::PeopleTracker>(pub_topic.c_str(), 10, con_cb, con_cb);
-    private_node_handle.param("pose", pub_topic_pose, std::string("/people_tracker/pose"));
-    pub_pose = n.advertise<geometry_msgs::PoseStamped>(pub_topic_pose.c_str(), 10, con_cb, con_cb);
-    private_node_handle.param("pose_array", pub_topic_pose_array, std::string("/people_tracker/pose_array"));
-    pub_pose_array = n.advertise<geometry_msgs::PoseArray>(pub_topic_pose_array.c_str(), 10, con_cb, con_cb);
-    private_node_handle.param("people", pub_topic_people, std::string("/people_tracker/people"));
-    pub_people = n.advertise<people_msgs::People>(pub_topic_people.c_str(), 10, con_cb, con_cb);
-    private_node_handle.param("tracked_people_array", pub_topic_tracked_people_array, std::string("/people_tracker/tracked_people"));
-    //TODO: I don't know if this topic is supposed to have the status callback (con_cb)
-    pub_tracked_people_array = n.advertise<mbot_perception_msgs::TrackedObject3DList>(pub_topic_tracked_people_array, 10, con_cb, con_cb);
-    private_node_handle.param("marker", pub_marker_topic, std::string("/people_tracker/marker_array"));
-    pub_marker = n.advertise<visualization_msgs::MarkerArray>(pub_marker_topic.c_str(), 10, con_cb, con_cb);
+    private_node_handle.param("positions_topic", pub_topic, std::string("positions"));
+    pub_detect = private_node_handle.advertise<bayes_people_tracker::PeopleTracker>(pub_topic.c_str(), 10, con_cb, con_cb);
+    
+    private_node_handle.param("pose_topic", pub_topic_pose, std::string("pose"));
+    pub_pose = private_node_handle.advertise<geometry_msgs::PoseStamped>(pub_topic_pose.c_str(), 10, con_cb, con_cb);
+    
+    private_node_handle.param("pose_array_topic", pub_topic_pose_array, std::string("pose_array"));
+    pub_pose_array = private_node_handle.advertise<geometry_msgs::PoseArray>(pub_topic_pose_array.c_str(), 10, con_cb, con_cb);
+    
+    private_node_handle.param("people_topic", pub_topic_people, std::string("people"));
+    pub_people = private_node_handle.advertise<people_msgs::People>(pub_topic_people.c_str(), 10, con_cb, con_cb);
+    
+    private_node_handle.param("tracked_people_topic", pub_topic_tracked_people_array, std::string("tracked_people"));
+    pub_tracked_people_array = private_node_handle.advertise<mbot_perception_msgs::TrackedObject3DList>(pub_topic_tracked_people_array, 10, con_cb, con_cb);
+    
+    private_node_handle.param("marker_topic", pub_marker_topic, std::string("marker_array"));
+    pub_marker = private_node_handle.advertise<visualization_msgs::MarkerArray>(pub_marker_topic.c_str(), 10, con_cb, con_cb);
 
     boost::thread tracking_thread(boost::bind(&PeopleTracker::trackingThread, this));
 
