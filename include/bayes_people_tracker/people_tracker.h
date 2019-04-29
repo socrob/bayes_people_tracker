@@ -22,6 +22,10 @@
 #include <boost/uuid/uuid_io.hpp>
 
 #include <bayes_tracking/BayesFilter/bayesFlt.hpp>
+#include <mbot_perception_msgs/RecognizedObject3D.h>
+#include <mbot_perception_msgs/RecognizedObject3DList.h>
+#include <mbot_perception_msgs/TrackedObject3D.h>
+#include <mbot_perception_msgs/TrackedObject3DList.h>
 
 #include <XmlRpcValue.h>
 
@@ -33,6 +37,7 @@
 #include "bayes_people_tracker/simple_tracking.h"
 #include "bayes_people_tracker/asso_exception.h"
 #include "bayes_people_tracker/people_marker.h"
+
 
 #define BASE_LINK "/base_link"
 
@@ -47,6 +52,7 @@ private:
     void publishDetections(geometry_msgs::PoseStamped msg);
     void publishDetections(geometry_msgs::PoseArray msg);
     void publishDetections(people_msgs::People msg);
+    void publishDetections(mbot_perception_msgs::TrackedObject3DList msg);
     void publishDetections(double time_sec,
                            geometry_msgs::Pose closest,
                            std::vector<geometry_msgs::Pose> ppl,
@@ -58,7 +64,7 @@ private:
                            double angle);
     void createVisualisation(std::vector<geometry_msgs::Pose> points, ros::Publisher& pub);
     std::vector<double> cartesianToPolar(geometry_msgs::Point point);
-    void detectorCallback(const geometry_msgs::PoseArray::ConstPtr &pta, string detector);
+    void detectorCallback(const mbot_perception_msgs::RecognizedObject3DList::ConstPtr &pta, string detector);
     void connectCallback(ros::NodeHandle &n);
     void parseParams(ros::NodeHandle);
 
@@ -80,12 +86,14 @@ private:
     ros::Publisher pub_pose;
     ros::Publisher pub_pose_array;
     ros::Publisher pub_people;
+    ros::Publisher pub_tracked_people_array;
     ros::Publisher pub_marker;
     tf::TransformListener* listener;
     std::string target_frame;
     unsigned long detect_seq;
     double startup_time;
     std::string startup_time_str;
+    std::string class_name;
 
     boost::uuids::uuid dns_namespace_uuid;
 

@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(bayes_people_tracker)
+add_definitions(-std=c++11)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
@@ -7,6 +8,7 @@ project(bayes_people_tracker)
 find_package(catkin REQUIRED COMPONENTS
     bayes_tracking
     geometry_msgs
+    mbot_perception_msgs
     message_generation
     people_msgs
     roscpp
