@@ -1,5 +1,7 @@
 #include "bayes_people_tracker/people_tracker.h"
 
+class PeopleTracker;
+
 PeopleTracker::PeopleTracker() :
     detect_seq(0)
 {
@@ -17,6 +19,7 @@ PeopleTracker::PeopleTracker() :
     std::string pub_topic_pose_array;
     std::string pub_topic_people;
     std::string pub_marker_topic;
+    std::string pub_topic_tracked_people_array;
 
     // Initialize node parameters from launch file or command line.
     // Use a private node handle so that multiple instances of the node can be run simultaneously
@@ -37,6 +40,9 @@ PeopleTracker::PeopleTracker() :
     pub_pose_array = n.advertise<geometry_msgs::PoseArray>(pub_topic_pose_array.c_str(), 10, con_cb, con_cb);
     private_node_handle.param("people", pub_topic_people, std::string("/people_tracker/people"));
     pub_people = n.advertise<people_msgs::People>(pub_topic_people.c_str(), 10, con_cb, con_cb);
+    private_node_handle.param("tracked_people_array", pub_topic_tracked_people_array, std::string("/people_tracker/tracked_people"));
+    //TODO: I don't know if this topic is supposed to have the status callback (con_cb)
+    pub_tracked_people_array = n.advertise<mbot_perception_msgs::TrackedObject3DList>(pub_topic_tracked_people_array, 10, con_cb, con_cb);
     private_node_handle.param("marker", pub_marker_topic, std::string("/people_tracker/marker_array"));
     pub_marker = n.advertise<visualization_msgs::MarkerArray>(pub_marker_topic.c_str(), 10, con_cb, con_cb);
 
@@ -45,6 +51,7 @@ PeopleTracker::PeopleTracker() :
     ros::spin();
 }
 
+//TODO: make parameters private
 void PeopleTracker::parseParams(ros::NodeHandle n) {
     std::string filter;
     n.getParam("filter_type", filter);
@@ -96,6 +103,7 @@ void PeopleTracker::parseParams(ros::NodeHandle n) {
         ros::Subscriber sub;
         subscribers[std::pair<std::string, std::string>(it->first, detectors[it->first]["topic"])] = sub;
     }
+    n.getParam("class_name",class_name);
 }
 
 
@@ -178,6 +186,8 @@ void PeopleTracker::publishDetections(
 
     people_msgs::People people;
     people.header = result.header;
+    mbot_perception_msgs::TrackedObject3DList tracked_people_msg;
+    tracked_people_msg.header = people.header;
     for(int i = 0; i < ppl.size(); i++) {
         // Just running one loop for people_msgs and adding velocities to people_tracker message
         // Adding velocities as a vector to PeopleTracker message
@@ -195,11 +205,30 @@ void PeopleTracker::publishDetections(
         person.tagnames.push_back("uuid");
         person.reliability = 1.0;
         people.people.push_back(person);
+
+
+        // Creating and adding a tracked_person message
+        mbot_perception_msgs::TrackedObject3D tracked_person;
+        tracked_person.uuid = uuids[i];
+        tracked_person.class_name = {class_name};
+        tracked_person.class_likelihood = {1.0};
+        tracked_person.class_probability = {1.0};
+        tracked_person.confidence = 1.0;
+        tracked_person.pose.pose = ppl[i];
+//        tracked_person.pose.covariance = ; TODO
+        tracked_person.velocity.x = person.velocity.x;
+        tracked_person.velocity.y = person.velocity.y;
+        tracked_person.velocity.z = 0;
+        tracked_people_msg.objects.push_back(tracked_person);
+
     }
+
+
 
     // Publishing both messages
     publishDetections(result);
     publishDetections(people);
+    publishDetections(tracked_people_msg);
 
     geometry_msgs::PoseStamped pose;
     pose.header = result.header;
@@ -228,6 +257,10 @@ void PeopleTracker::publishDetections(people_msgs::People msg) {
     pub_people.publish(msg);
 }
 
+void PeopleTracker::publishDetections(mbot_perception_msgs::TrackedObject3DList msg) {
+    pub_tracked_people_array.publish(msg);
+}
+
 void PeopleTracker::createVisualisation(std::vector<geometry_msgs::Pose> poses, ros::Publisher& pub) {
     ROS_DEBUG("Creating markers");
     visualization_msgs::MarkerArray marker_array;
@@ -249,11 +282,11 @@ std::vector<double> PeopleTracker::cartesianToPolar(geometry_msgs::Point point) 
     return output;
 }
 
-void PeopleTracker::detectorCallback(const geometry_msgs::PoseArray::ConstPtr &pta, std::string detector)
+void PeopleTracker::detectorCallback(const mbot_perception_msgs::RecognizedObject3DList::ConstPtr &pta, std::string detector)
 {
     // Publish an empty message to trigger callbacks even when there are no detections.
     // This can be used by nodes which might also want to know when there is no human detected.
-    if(pta->poses.size() == 0) {
+    if(pta->objects.size() == 0) { //TODO Not sure if it's the size of the objects detected or the poses of a certain object
         bayes_people_tracker::PeopleTracker empty;
         empty.header.stamp = ros::Time::now();
         empty.header.frame_id = target_frame;
@@ -263,8 +296,10 @@ void PeopleTracker::detectorCallback(const geometry_msgs::PoseArray::ConstPtr &p
     }
 
     std::vector<geometry_msgs::Point> ppl;
-    for(int i = 0; i < pta->poses.size(); i++) {
-        geometry_msgs::Pose pt = pta->poses[i];
+    for(int j = 0; j < pta->objects.size(); j++){ // TODO use for(auto obj : pta->objects) --> like obj = pta->objects[j]
+
+        if(pta->objects[j].class_name == class_name) {
+            geometry_msgs::Pose pt = pta->objects[j].pose;
 
             //Create stamped pose for tf
             geometry_msgs::PoseStamped poseInCamCoords;
@@ -276,18 +311,20 @@ void PeopleTracker::detectorCallback(const geometry_msgs::PoseArray::ConstPtr &p
             try {
                 // Transform into given traget frame. Default /map
                 ROS_DEBUG("Transforming received position into %s coordinate system.", target_frame.c_str());
-                listener->waitForTransform(poseInCamCoords.header.frame_id, target_frame, poseInCamCoords.header.stamp, ros::Duration(3.0));
-                listener->transformPose(target_frame, ros::Time(0), poseInCamCoords, poseInCamCoords.header.frame_id, poseInTargetCoords);
+                listener->waitForTransform(poseInCamCoords.header.frame_id, target_frame,
+                                           poseInCamCoords.header.stamp, ros::Duration(3.0));
+                listener->transformPose(target_frame, ros::Time(0), poseInCamCoords,
+                                        poseInCamCoords.header.frame_id, poseInTargetCoords);
             }
-            catch(tf::TransformException ex) {
-	      std::cout << target_frame << std::endl;
+            catch (tf::TransformException ex) {
+                std::cout << target_frame << std::endl;
                 ROS_WARN("Failed transform: %s", ex.what());
-	      return;
+                return;
             }
 
             //poseInTargetCoords.pose.position.z = 0.0;
             ppl.push_back(poseInTargetCoords.pose.position);
-
+        }
     }
     if(ppl.size()) {
         ekf == NULL ?
@@ -301,17 +338,18 @@ void PeopleTracker::connectCallback(ros::NodeHandle &n) {
     bool loc = pub_detect.getNumSubscribers();
     bool markers = pub_marker.getNumSubscribers();
     bool people = pub_people.getNumSubscribers();
+    bool tracked_people = pub_tracked_people_array.getNumSubscribers();
     bool pose = pub_pose.getNumSubscribers();
     bool pose_array = pub_pose_array.getNumSubscribers();
     std::map<std::pair<std::string, std::string>, ros::Subscriber>::const_iterator it;
-    if(!loc && !markers && !people && !pose && !pose_array) {
+    if(!loc && !markers && !people && !tracked_people && !pose && !pose_array) {
         ROS_DEBUG("Pedestrian Localisation: No subscribers. Unsubscribing.");
         for(it = subscribers.begin(); it != subscribers.end(); ++it)
             const_cast<ros::Subscriber&>(it->second).shutdown();
     } else {
         ROS_DEBUG("Pedestrian Localisation: New subscribers. Subscribing.");
         for(it = subscribers.begin(); it != subscribers.end(); ++it)
-            subscribers[it->first] = n.subscribe<geometry_msgs::PoseArray>(it->first.second.c_str(), 10, boost::bind(&PeopleTracker::detectorCallback, this, _1, it->first.first));
+            subscribers[it->first] = n.subscribe<mbot_perception_msgs::RecognizedObject3DList>(it->first.second.c_str(), 10, boost::bind(&PeopleTracker::detectorCallback, this, _1, it->first.first));
     }
 }
 
