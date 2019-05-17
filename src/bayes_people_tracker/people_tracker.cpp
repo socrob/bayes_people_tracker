@@ -29,24 +29,27 @@ PeopleTracker::PeopleTracker() :
     private_node_handle.param("people_array", pta_topic, std::string("/upper_body_detector/bounding_box_centres"));
     parseParams(private_node_handle);
 
+    // Subscribe to the event in callback
+    auto event_in_sub = private_node_handle.subscribe("event_in", 1, &PeopleTracker::eventInCallback, this);
+
     // Create a status callback.
     ros::SubscriberStatusCallback con_cb = boost::bind(&PeopleTracker::connectCallback, this, boost::ref(n));
 
     private_node_handle.param("positions_topic", pub_topic, std::string("positions"));
     pub_detect = private_node_handle.advertise<bayes_people_tracker::PeopleTracker>(pub_topic.c_str(), 10, con_cb, con_cb);
-    
+
     private_node_handle.param("pose_topic", pub_topic_pose, std::string("pose"));
     pub_pose = private_node_handle.advertise<geometry_msgs::PoseStamped>(pub_topic_pose.c_str(), 10, con_cb, con_cb);
-    
+
     private_node_handle.param("pose_array_topic", pub_topic_pose_array, std::string("pose_array"));
     pub_pose_array = private_node_handle.advertise<geometry_msgs::PoseArray>(pub_topic_pose_array.c_str(), 10, con_cb, con_cb);
-    
+
     private_node_handle.param("people_topic", pub_topic_people, std::string("people"));
     pub_people = private_node_handle.advertise<people_msgs::People>(pub_topic_people.c_str(), 10, con_cb, con_cb);
-    
+
     private_node_handle.param("tracked_people_topic", pub_topic_tracked_people_array, std::string("tracked_people"));
     pub_tracked_people_array = private_node_handle.advertise<mbot_perception_msgs::TrackedObject3DList>(pub_topic_tracked_people_array, 10, con_cb, con_cb);
-    
+
     private_node_handle.param("marker_topic", pub_marker_topic, std::string("marker_array"));
     pub_marker = private_node_handle.advertise<visualization_msgs::MarkerArray>(pub_marker_topic.c_str(), 10, con_cb, con_cb);
 
@@ -55,7 +58,6 @@ PeopleTracker::PeopleTracker() :
     ros::spin();
 }
 
-//TODO: make parameters private
 void PeopleTracker::parseParams(ros::NodeHandle n) {
     std::string filter;
     n.getParam("filter_type", filter);
@@ -107,7 +109,13 @@ void PeopleTracker::parseParams(ros::NodeHandle n) {
         ros::Subscriber sub;
         subscribers[std::pair<std::string, std::string>(it->first, detectors[it->first]["topic"])] = sub;
     }
-    n.getParam("class_name",class_name);
+
+    n.param("class_name", class_name, std::string("person"));
+
+    n.param("always_run", always_run, true);
+
+    ROS_INFO_STREAM("Subscription mode set to: always_run=" << always_run );
+
 }
 
 
@@ -339,22 +347,63 @@ void PeopleTracker::detectorCallback(const mbot_perception_msgs::RecognizedObjec
 
 // Connection callback that unsubscribes from the tracker if no one is subscribed.
 void PeopleTracker::connectCallback(ros::NodeHandle &n) {
-    bool loc = pub_detect.getNumSubscribers();
-    bool markers = pub_marker.getNumSubscribers();
-    bool people = pub_people.getNumSubscribers();
-    bool tracked_people = pub_tracked_people_array.getNumSubscribers();
-    bool pose = pub_pose.getNumSubscribers();
-    bool pose_array = pub_pose_array.getNumSubscribers();
-    std::map<std::pair<std::string, std::string>, ros::Subscriber>::const_iterator it;
-    if(!loc && !markers && !people && !tracked_people && !pose && !pose_array) {
-        ROS_DEBUG("Pedestrian Localisation: No subscribers. Unsubscribing.");
-        for(it = subscribers.begin(); it != subscribers.end(); ++it)
-            const_cast<ros::Subscriber&>(it->second).shutdown();
-    } else {
-        ROS_DEBUG("Pedestrian Localisation: New subscribers. Subscribing.");
-        for(it = subscribers.begin(); it != subscribers.end(); ++it)
-            subscribers[it->first] = n.subscribe<mbot_perception_msgs::RecognizedObject3DList>(it->first.second.c_str(), 10, boost::bind(&PeopleTracker::detectorCallback, this, _1, it->first.first));
+
+    if(always_run){
+
+        bool loc = pub_detect.getNumSubscribers();
+        bool markers = pub_marker.getNumSubscribers();
+        bool people = pub_people.getNumSubscribers();
+        bool tracked_people = pub_tracked_people_array.getNumSubscribers();
+        bool pose = pub_pose.getNumSubscribers();
+        bool pose_array = pub_pose_array.getNumSubscribers();
+
+        if(!loc && !markers && !people && !tracked_people && !pose && !pose_array) {
+            ROS_DEBUG("No subscribers. Unsubscribing.");
+            destroySubscribers();
+        } else {
+            ROS_DEBUG("New subscribers. Subscribing.");
+            createSubscribers();
+        }
     }
+}
+
+void PeopleTracker::destroySubscribers() {
+    for (auto &it : subscribers) const_cast<ros::Subscriber &>(it.second).shutdown();
+}
+
+void PeopleTracker::createSubscribers() {
+    ros::NodeHandle n;
+    for (auto &it : subscribers)
+        subscribers[it.first] = n.subscribe<mbot_perception_msgs::RecognizedObject3DList>(it.first.second.c_str(), 10, boost::bind(&PeopleTracker::detectorCallback, this, _1, it.first.first));
+}
+
+void PeopleTracker::eventInCallback(const std_msgs::String &msg) {
+
+    if(always_run){
+        ROS_WARN("Node set to mode always_run, start/stop events are ignored!");
+        return;
+    }
+
+    if (msg.data == "e_start") {
+        if (!running_requested) {
+            ROS_INFO("START EVENT RECEIVED");
+            createSubscribers();
+            running_requested = true;
+        } else {
+            ROS_ERROR("START EVENT RECEIVED, ALREADY STARTED");
+        }
+    }
+
+    if (msg.data == "e_stop") {
+        if (running_requested) {
+            ROS_INFO("STOP EVENT RECEIVED");
+            destroySubscribers();
+            running_requested = false;
+        } else {
+            ROS_WARN("STOP EVENT RECEIVED, ALREADY STOPPED");
+        }
+    }
+
 }
 
 int main(int argc, char **argv)

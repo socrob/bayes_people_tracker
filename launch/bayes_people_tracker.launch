@@ -1,35 +1,43 @@
 <?xml version="1.0"?>
 
 <launch>
-    <arg name="param_file" default="$(find bayes_people_tracker)/config/detectors_people_following.yaml" />
+
+    <arg name="namespace" default="mbot_perception" />
+    <arg name="param_file" default="$(find bayes_people_tracker)/config/detectors.yaml" />
 
     <arg name="target_frame" default="/map" />
-    
+
+    <arg name="always_run"            default="false" />
+
     <arg name="positions_topic"       default="positions" />
     <arg name="pose_topic"            default="pose" />
     <arg name="pose_array_topic"      default="pose_array" />
     <arg name="people_topic"          default="people" />
     <arg name="marker_topic"          default="marker_array" />
-    <arg name="tracked_people_topic"  default="/mbot_perception/small_objects_tracker/tracked_objects" />
-    
+    <arg name="tracked_people_topic"  default="tracked_people" />
+
     <arg name="machine"     default="localhost" />
     <arg name="user"        default="" />
     <arg name="class_name"  default="person" />
-    
-    <machine name="$(arg machine)" address="$(arg machine)" env-loader="$(optenv ROS_ENV_LOADER )" user="$(arg user)" default="true"/>
-    
-    <node pkg="bayes_people_tracker" type="bayes_people_tracker" name="people_tracker" output="screen" respawn="true">
-        <rosparam command="load" file="$(arg param_file)"/>
-        
-        <param name="target_frame"          value="$(arg target_frame)"         type="string"/>
-        <param name="class_name"            value="$(arg class_name)"           type="string"/>
-        
-        <param name="positions_topic"       value="$(arg positions_topic)"      type="string"/>
-        <param name="pose_topic"            value="$(arg pose_topic)"           type="string"/>
-        <param name="pose_array_topic"      value="$(arg pose_array_topic)"     type="string"/>
-        <param name="people_topic"          value="$(arg people_topic)"         type="string"/>
-        <param name="marker_topic"          value="$(arg marker_topic)"         type="string"/>
-        <param name="tracked_people_topic"  value="$(arg tracked_people_topic)" type="string"/>
-    </node>
 
+    <machine name="$(arg machine)" address="$(arg machine)" env-loader="$(optenv ROS_ENV_LOADER )" user="$(arg user)" default="true"/>
+
+    <group ns="$(arg namespace)">
+        <node pkg="bayes_people_tracker" type="bayes_people_tracker" name="people_tracker" output="screen" respawn="true">
+            <rosparam command="load" file="$(arg param_file)"/>
+
+            <param name="always_run"            value="$(arg always_run)"           type="bool"/>
+
+            <param name="target_frame"          value="$(arg target_frame)"         type="string"/>
+            <param name="class_name"            value="$(arg class_name)"           type="string"/>
+
+            <param name="positions_topic"       value="$(arg positions_topic)"      type="string"/>
+            <param name="pose_topic"            value="$(arg pose_topic)"           type="string"/>
+            <param name="pose_array_topic"      value="$(arg pose_array_topic)"     type="string"/>
+            <param name="people_topic"          value="$(arg people_topic)"         type="string"/>
+            <param name="marker_topic"          value="$(arg marker_topic)"         type="string"/>
+            <param name="tracked_people_topic"  value="$(arg tracked_people_topic)" type="string"/>
+        </node>
+
+    </group>
 </launch> 

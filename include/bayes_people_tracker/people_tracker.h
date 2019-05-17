@@ -13,6 +13,7 @@
 #include <geometry_msgs/Vector3.h>
 #include <visualization_msgs/MarkerArray.h>
 #include <visualization_msgs/Marker.h>
+#include <std_msgs/String.h>
 #include <std_msgs/ColorRGBA.h>
 #include <people_msgs/People.h>
 #include <people_msgs/Person.h>
@@ -68,6 +69,10 @@ private:
     void connectCallback(ros::NodeHandle &n);
     void parseParams(ros::NodeHandle);
 
+    void eventInCallback(const std_msgs::String &msg);
+    void destroySubscribers();
+    void createSubscribers();
+
     std::string generateUUID(std::string time, long id) {
         boost::uuids::name_generator gen(dns_namespace_uuid);
         time += num_to_str<long>(id);
@@ -102,6 +107,9 @@ private:
     SimpleTracking<EKFilter> *ekf = NULL;
     SimpleTracking<UKFilter> *ukf = NULL;
     std::map<std::pair<std::string, std::string>, ros::Subscriber> subscribers;
+
+    bool always_run = true;
+    bool running_requested = false;
 };
 
 #endif // PEDESTRIANLOCALISATION_H

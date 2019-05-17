@@ -1,12 +1,11 @@
-bayes_people_tracker:
-    filter_type: "UKF"                                         # The Kalman filter type: EKF = Extended Kalman Filter, UKF = Uncented Kalman Filter
-    cv_noise_params:                                           # The noise for the constant velocity prediction model
-        x: 1.4  #1.4
-        y: 1.4
-    detectors:                                                 # Add detectors under this namespace
-        kinect_1:                                   # Name of detector (used internally to identify them). Has to be unique.
-            topic: "/mapeople" # The topic on which the geometry_msgs/PoseArray is published
-            cartesian_noise_params:                            # The noise for the cartesian observation model
-                x: 0.3 #def:0.5 meu:0.3
-                y: 0.3
-            matching_algorithm: "NNJPDA"                       # The algorthim to match different detections. NN = Nearest Neighbour, NNJPDA = NN Joint Probability Data Association
+filter_type: UKF                                           # The Kalman filter type: EKF = Extended Kalman Filter, UKF = Uncented Kalman Filter
+cv_noise_params:                                           # The noise for the constant velocity prediction model
+    x: 1.4
+    y: 1.4
+detectors:                                                 # Add detectors under this namespace
+    upper_body:                                            # Name of detector (used internally to identify them). Has to be unique.
+        topic: "generic_localizer/localized_objects"       # The topic on which the detections are published
+        cartesian_noise_params:                            # The noise for the cartesian observation model
+            x: 0.3
+            y: 0.3
+        matching_algorithm: "NNJPDA"                       # The algorthim to match different detections. NN = Nearest Neighbour, NNJPDA = NN Joint Probability Data Association
