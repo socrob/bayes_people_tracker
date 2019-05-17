@@ -7,6 +7,8 @@
 
     <arg name="target_frame" default="/map" />
 
+    <arg name="always_run"            default="false" />
+
     <arg name="positions_topic"       default="positions" />
     <arg name="pose_topic"            default="pose" />
     <arg name="pose_array_topic"      default="pose_array" />
@@ -23,6 +25,8 @@
     <group ns="$(arg namespace)">
         <node pkg="bayes_people_tracker" type="bayes_people_tracker" name="people_tracker" output="screen" respawn="true">
             <rosparam command="load" file="$(arg param_file)"/>
+
+            <param name="always_run"            value="$(arg always_run)"           type="bool"/>
 
             <param name="target_frame"          value="$(arg target_frame)"         type="string"/>
             <param name="class_name"            value="$(arg class_name)"           type="string"/>
