@@ -2,7 +2,6 @@
 
 <launch>
     <arg name="param_file" default="$(find bayes_people_tracker)/config/detectors_people_following.yaml" />
-    <rosparam command="load" file="$(arg param_file)"/>
 
     <arg name="always_run" default="true" />
 
@@ -15,9 +14,10 @@
     <arg name="machine" default="localhost" />
     <arg name="user" default="" />
     <machine name="$(arg machine)" address="$(arg machine)" env-loader="$(optenv ROS_ENV_LOADER )" user="$(arg user)" default="true"/>
-    
+
     <node pkg="bayes_people_tracker" type="bayes_people_tracker" name="bayes_people_tracker" output="screen" respawn="true">
       <!--remap from="odom" to="odom_fixed"/-->
+      <rosparam command="load" file="$(arg param_file)"/>
       <param name="always_run" value="$(arg always_run)" type="bool"/>
       <param name="target_frame" value="$(arg target_frame)" type="string"/>
       <param name="positions" value="$(arg positions)" type="string"/>
